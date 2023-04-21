@@ -1,4 +1,4 @@
-# Sign Language Recognition
+# British Sign Language Recognition Application
 
 This repository contains the code for a sign language recognition application. Please note that the pre-trained models used in this application are not included due to their large size. However, the training programs can be found in the `training` directory, which allows third parties to train models on any other sign language datasets.
 
