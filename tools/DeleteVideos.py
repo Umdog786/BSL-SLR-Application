@@ -1,8 +1,8 @@
 import os
 
 # Define paths to the subtitles and videos directories
-subtitles_dir = "X:/BOBSL/bobsl/audio-aligned/"
-videos_dir = "X:/BOBSL/bobsl/videos/"
+subtitles_dir = "subtitles"
+videos_dir = "videos"
 
 # Create a set of all the .vtt files in the subtitles directory
 vtt_files = set([f.split(".")[0] for f in os.listdir(subtitles_dir) if f.endswith(".vtt")])

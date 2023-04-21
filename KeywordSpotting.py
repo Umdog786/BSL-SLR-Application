@@ -363,8 +363,8 @@ if __name__ == "__main__":
         "occurance_count": 1,
     }
 
-    video_directory = "X:/BOBSL/bobsl/face-dataset/train"
-    subtitles_directory = "X:/BOBSL/bobsl/subtitles/audio-aligned-heuristic-correction"
+    video_directory = "dataset"
+    subtitles_directory = "subtitles"
 
     process_all_videos_in_directory(
         video_directory, subtitles_directory, args

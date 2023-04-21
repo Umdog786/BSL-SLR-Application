@@ -2,8 +2,8 @@ import os
 import shutil
 
 # Set the paths to the source and destination directories
-src_dir = "X:/BOBSL/bobsl/face-dataset/"
-dst_dir = "X:/BOBSL/bobsl/videos/"
+src_dir = "src"
+dst_dir = "dst"
 
 # Iterate over all subdirectories in the source directory
 for root, dirs, files in os.walk(src_dir):

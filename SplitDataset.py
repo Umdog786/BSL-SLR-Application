@@ -264,7 +264,7 @@ def plot_dataset_distribution(dataset_dir):
 
 def start_dataset_split():
     # Load the face detection cascade
-    cascade_path = "C:/Users/121al/University/COMP30151 Final Year Project/BSL_Translator/venv/Lib/site-packages/cv2/data/haarcascade_frontalface_default.xml"
+    cascade_path = "haarcascade_frontalface_default.xml"
     face_cascade = cv2.CascadeClassifier(cascade_path)
 
     # Get the list of video file paths
@@ -300,7 +300,7 @@ def start_dataset_split():
                                                                                train_ratio, val_ratio)
 
     # Define the output directory for the split datasets
-    output_base_dir = "X:/BOBSL/bobsl/face-dataset"
+    output_base_dir = "dataset"
 
     # Save the split datasets
     save_split_dataset(X_train, y_train, os.path.join(output_base_dir, "train"))
@@ -324,7 +324,7 @@ def count_unique_faces(face_encodings, tolerance=0.6):
 
 def main():
     # start_dataset_split()
-    datatset = "X:/BOBSL/bobsl/face-dataset"
+    datatset = "dataset"
     plot_dataset_distribution(datatset)
 
 
