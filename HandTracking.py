@@ -1,62 +1,46 @@
-import tkinter as tk
-from tkinter import messagebox
 import cv2
 import mediapipe as mp
+import tkinter as tk
 import numpy as np
-from PIL import Image, ImageTk
 import torch
-from torchvision import transforms
-from PIL import Image
-from i3d import InceptionI3d
+from PIL import Image, ImageTk
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-INPUT_SIZE = (224, 224)
+# Load the trained model
+model = torch.load("13d_trained.pth")
+model.eval()
 
 
-def load_model(model_path):
-    model = InceptionI3d(20, in_channels=3, num_in_frames=16)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-    return model
+# Function to preprocess hand landmarks for the model
+def preprocess_landmarks(hand_landmarks, width, height):
+    # Normalize and flatten the landmarks
+    hand_points = [(int(landmark.x * width), int(landmark.y * height)) for landmark in hand_landmarks.landmark]
+    hand_points = np.array(hand_points).flatten()
+    hand_points = torch.tensor(hand_points, dtype=torch.float).unsqueeze(0)
+    return hand_points
 
 
-def evaluate_model(model, frames):
-    transform = transforms.Compose([
-        transforms.Resize(INPUT_SIZE),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
-    transformed_frames = [transform(frame) for frame in frames]
-    inputs = torch.stack(transformed_frames, dim=0)
-    inputs = inputs.view(1, 3, 16, *INPUT_SIZE)  # Reshape the input tensor to (1, 3, 16, height, width)
-    inputs = inputs.to(device)
-
-    with torch.no_grad():
-        outputs = model(inputs)
-        logits = outputs['logits']  # Extract the logits from the outputs dictionary
-        _, predicted = logits.max(1)
-        predicted_class = predicted.item()
-
-    return predicted_class
-
-
-model = load_model("13d_trained.pth")
+# MediaPipe and Tkinter setup
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.5,
+                       min_tracking_confidence=0.5)
 
 root = tk.Tk()
-root.title("Sign Language Recognition")
+root.title("Sign Language Detection")
+root.attributes("-fullscreen", True)
 
-sidebar = tk.Frame(root, width=200, bg="white", height=600, relief="sunken", borderwidth=2)
+# Create sidebar and widgets
+sidebar_width = 200
+sidebar = tk.Frame(root, width=sidebar_width, bg="white", height=600, relief="sunken", borderwidth=2)
 sidebar.pack(expand=False, fill="both", side="left", anchor="nw")
 
-label = tk.Label(sidebar, text="Keywords:", bg="white", font=("Arial", 14))
-label.pack(pady=10)
+detected_label = tk.Label(sidebar, text="", bg="white", font=("Arial", 14))
+detected_label.pack(pady=10)
 
-keywords_list = tk.Listbox(sidebar, font=("Arial", 12), height=20, width=20)
-keywords_list.pack(pady=10)
+keywords_list = tk.Listbox(sidebar, font=("Arial", 20), height=20, width=20)
+keywords_list.pack(pady=100)
 
+# List of keywords for sign language detection
 keywords = ["baby", "nature", "body", "father", "animal", "money", "family", "garden", "mother",
             "morning", "fantastic", "happy", "hello", "number", "story", "remember", "please", "idea",
             "sorry", "stop"]
@@ -64,80 +48,72 @@ keywords = ["baby", "nature", "body", "father", "animal", "money", "family", "ga
 for keyword in keywords:
     keywords_list.insert(tk.END, keyword)
 
-result_label = tk.Label(root, text="Recognized Keyword: ", font=("Arial", 14))
-result_label.pack(pady=10)
-
+# Create video frame
 video_frame = tk.Label(root)
-video_frame.pack(padx=10, pady=10, side="right")
-
-
-def update_recognized_keyword(keyword):
-    result_label.config(text=f"Recognized Keyword: {keyword}")
-
-
-messagebox.showinfo("Welcome", "This is a proof-of-concept application built for sign language recognition. "
-                               "To achieve the best results, please ensure you are in a well-lit room without any hand obstructions.")
+video_frame.pack(padx=10, pady=10, side="right", fill="both", expand=True)
 
 cap = cv2.VideoCapture(0)
-mpHands = mp.solutions.hands
-hands = mpHands.Hands(False, 2, 1, 0.5, 0.5)
-mpDraw = mp.solutions.drawing_utils
-
-# Create a buffer to store the last 16 frames
-frame_buffer = []
+box_color = (255, 0, 0)
 
 
+# Function to update video frame with detected sign language
 def update_frame():
-    global frame_buffer
     ret, frame = cap.read()
     if not ret:
         return
 
+    # Calculate and resize the frame
+    screen_width = root.winfo_screenwidth() - sidebar_width
+    screen_height = root.winfo_screenheight()
+
+    frame_height, frame_width, _ = frame.shape
+    aspect_ratio = frame_width / frame_height
+    new_width = screen_width
+    new_height = int(new_width / aspect_ratio)
+
+    if new_height > screen_height:
+        new_height = screen_height
+        new_width = int(new_height * aspect_ratio)
+
+    frame = cv2.resize(frame, (new_width, new_height))
+
+    # Process the frame
     height, width, channels = frame.shape
     frameRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(frameRGB)
 
+    # Draw landmarks and bounding box if hand detected
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
-            # Get the hand landmarks coordinates
-            hand_points = [(int(landmark.x * width), int(landmark.y * height)) for landmark in hand_landmarks.landmark]
+            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            # Calculate the bounding box
+            hand_points = preprocess_landmarks(hand_landmarks, width, height)
+            output = model(hand_points)
+            prediction = torch.argmax(output, dim=1).item()
+            keyword = keywords[prediction]
+
+            # Calculate the bounding box coordinates
             min_x, min_y = np.min(hand_points, axis=0)
             max_x, max_y = np.max(hand_points, axis=0)
 
-            # Crop the image around the bounding box
-            cropped_frame = frameRGB[min_y:max_y, min_x:max_x]
+            # Update the detected label and bounding box color based on the prediction
+            box_color = (0, 255, 0)
+            detected_label.config(text=f"Keyword '{keyword}' detected")
 
-            # Resize the cropped image to the desired input size
-            resized_frame = cv2.resize(cropped_frame, (224, 224))
+            # Draw the bounding box
+            cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), box_color, 2)
 
-            # Convert the resized frame to a PIL Image
-            pil_frame = Image.fromarray(resized_frame)
+        # Update the video frame with the processed frame
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        imgtk = ImageTk.PhotoImage(image=img)
+        video_frame.config(image=imgtk)
+        video_frame.imgtk = imgtk
+        video_frame.after(10, update_frame)
 
-            # Add the new frame to the frame buffer
-            frame_buffer.append(pil_frame)
-
-            # Remove the oldest frame from the buffer if it reaches 16 frames
-            if len(frame_buffer) > 16:
-                frame_buffer.pop(0)
-
-            # Evaluate the model using the frame buffer
-            if len(frame_buffer) == 16:
-                predicted_class = evaluate_model(model, frame_buffer)
-                update_recognized_keyword(keywords[predicted_class])
-
-            mpDraw.draw_landmarks(frame, hand_landmarks, mpHands.HAND_CONNECTIONS)
-
-    img = Image.fromarray(frame)
-    imgtk = ImageTk.PhotoImage(image=img)
-    video_frame.config(image=imgtk)
-    video_frame.imgtk = imgtk
-    video_frame.after(10, update_frame)
-
-
+# Start the video frame update
 update_frame()
 root.mainloop()
 
-cap.release()
+# Release the camera and destroy all windows
 cv2.destroyAllWindows()
+cap.release()

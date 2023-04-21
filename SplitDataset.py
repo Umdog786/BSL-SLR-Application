@@ -60,10 +60,14 @@ def keyword_occurrences(file_path, keywords):
 
 def find_keyword_occurrences(subtitles, keywords):
     keyword_occurrences = []
+    # Iterate through the subtitles
     for subtitle in subtitles:
+        # Check for each keyword in the subtitle text
         for keyword in keywords:
             if keyword.lower() in subtitle.text.lower():
+                # Add the subtitle and keyword to the occurrences list
                 keyword_occurrences.append((subtitle, keyword))
+
     return keyword_occurrences
 
 
@@ -229,11 +233,14 @@ def split_dataset_by_identity(video_paths, labels, train_ratio, val_ratio):
     num_train_labels = int(train_ratio * len(unique_labels))
     num_val_labels = int(val_ratio * len(unique_labels))
 
+    # Shuffle the unique labels randomly
     random.shuffle(unique_labels)
+    # Split the unique labels into train, validation, and test sets
     train_labels = unique_labels[:num_train_labels]
     val_labels = unique_labels[num_train_labels:num_train_labels + num_val_labels]
     test_labels = unique_labels[num_train_labels + num_val_labels:]
 
+    # Create train, validation, and test datasets based on their corresponding labels
     X_train = [path for path, label in zip(video_paths, labels) if label in train_labels]
     y_train = [label for label in labels if label in train_labels]
 
@@ -247,23 +254,12 @@ def split_dataset_by_identity(video_paths, labels, train_ratio, val_ratio):
 
 
 def plot_dataset_distribution(dataset_dir):
-
-    # train_dir = os.path.join(dataset_dir, 'train')
-    # print(train_dir)
-    # test_dir = os.path.join(dataset_dir, 'test')
-    # val_dir = os.path.join(dataset_dir, 'val')
-    #
-    # train_count = len(os.listdir(train_dir))
-    # test_count = len(os.listdir(test_dir))
-    # val_count = len(os.listdir(val_dir))
-
     fig, ax = plt.subplots()
     ax.bar(['train', 'test', 'val'], [1443, 194, 291])
     ax.set_title('Distribution of Dataset')
     ax.set_xlabel('Dataset Split')
     ax.set_ylabel('Number of Files')
     plt.show()
-
 
 
 def start_dataset_split():

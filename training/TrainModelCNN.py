@@ -7,17 +7,21 @@ from tensorflow.keras.layers import Conv3D, MaxPooling3D, Flatten, Dense, Dropou
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.utils import plot_model
 
+# Add Graphviz to PATH (change the path if necessary)
 os.environ["PATH"] += os.pathsep + 'C:/Program Files/Graphviz/bin/'
 
+# Initialize MediaPipe drawing and hands solutions
 mp_draw = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(False, 2, 1, 0.5, 0.5)
 
+# Define image size, number of frames, and number of classes
 IMG_SIZE = (224, 224)
 NUM_FRAMES = 16
 NUM_CLASSES = 20
 
 
+# Function to process a single video and extract hand landmarks
 def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -61,6 +65,7 @@ def process_video(video_path):
     return concatenated_landmarks
 
 
+# Function to prepare the dataset by processing all videos in the data directory
 def prepare_dataset(data_dir):
     X = []
     y = []
@@ -92,27 +97,32 @@ def prepare_dataset(data_dir):
     return np.array(X), np.array(y)
 
 
+# Define dataset directories
 train_data_dir = "dataset/train"
 test_data_dir = "dataset/test"
 val_data_dir = "dataset/val"
 
-# Prepare datasets
+# Prepare the train dataset
 print("Preparing train dataset...")
 X_train, y_train = prepare_dataset(train_data_dir)
 print("Train dataset prepared.")
 
+# Prepare the test dataset
 print("Preparing test dataset...")
 X_test, y_test = prepare_dataset(test_data_dir)
 print("Test dataset prepared.")
 
+# Prepare the validation dataset
 print("Preparing validation dataset...")
 X_val, y_val = prepare_dataset(val_data_dir)
 print("Validation dataset prepared.")
 
+# Print the shape of each dataset
 print(f"Train dataset shape: {X_train.shape}")
 print(f"Test dataset shape: {X_test.shape}")
 print(f"Validation dataset shape: {X_val.shape}")
 
+# Reshape datasets for 3D CNN input
 X_train_cnn = X_train.reshape(-1, NUM_FRAMES, IMG_SIZE[0], IMG_SIZE[1], 3)
 X_test_cnn = X_test.reshape(-1, NUM_FRAMES, IMG_SIZE[0], IMG_SIZE[1], 3)
 X_val_cnn = X_val.reshape(-1, NUM_FRAMES, IMG_SIZE[0], IMG_SIZE[1], 3)
@@ -120,31 +130,31 @@ X_val_cnn = X_val.reshape(-1, NUM_FRAMES, IMG_SIZE[0], IMG_SIZE[1], 3)
 # Build the 3D CNN model
 model = Sequential()
 
+# Add layers to the model
 model.add(Conv3D(32, kernel_size=(2, 3, 3), activation='relu', input_shape=(NUM_FRAMES, IMG_SIZE[0], IMG_SIZE[1], 3)))
 model.add(MaxPooling3D(pool_size=(2, 2, 2)))
-
 model.add(Conv3D(64, kernel_size=(2, 3, 3), activation='relu'))
 model.add(MaxPooling3D(pool_size=(2, 2, 2)))
-
 model.add(Conv3D(128, kernel_size=(2, 3, 3), activation='relu'))
 model.add(MaxPooling3D(pool_size=(2, 2, 2)))
-
 model.add(Flatten())
 model.add(Dense(256, activation='relu'))
 model.add(Dropout(0.5))
 model.add(Dense(NUM_CLASSES, activation='softmax'))
 
+# Visualize the model architecture and save it to a file
 plot_model(model, to_file='models/3d_cnn_model.png', show_shapes=True, show_layer_names=True)
 
+# Compile the model with the specified loss function, optimizer, and metric
 model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-# Train the model
+# Train the model using the train and validation datasets
 model.fit(X_train_cnn, y_train, batch_size=16, epochs=15, validation_data=(X_val_cnn, y_val))
 
-# Save the trained model
+# Save the trained model to a file
 model.save('3d_cnn_model.h5')
 
-# Evaluate the model
+# Evaluate the model using the test dataset
 print("Evaluating the model...")
 score = model.evaluate(X_test_cnn, y_test)
 print(f"Test loss: {score[0]}")

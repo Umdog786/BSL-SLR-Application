@@ -1,30 +1,37 @@
+# Import necessary libraries
 import os
 import torch
 import cv2
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
+
+# i3d model can be found https://github.com/gulvarol/bsldict
 from i3d import InceptionI3d
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 
-
+# Define input size and number of classes
 INPUT_SIZE = (224, 224)
 NUM_CLASSES = 20
 
+# Set the device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+# Custom dataset class
 class CustomDataset(Dataset):
     def __init__(self, data_root, transform=None):
         self.data_root = data_root
         self.transform = transform
+        # Define class names
         self.class_names = ["baby", "nature", "body", "father", "animal", "money", "family", "garden", "mother",
                             "morning", "fantastic", "happy", "hello", "number", "story", "remember", "please", "idea",
                             "sorry",
                             "stop"]
         self.samples = self._build_samples()
 
+    # Build samples
     def _build_samples(self):
         samples = []
         for class_id, class_name in enumerate(self.class_names):
@@ -37,9 +44,11 @@ class CustomDataset(Dataset):
                 })
         return samples
 
+    # Get length of dataset
     def __len__(self):
         return len(self.samples)
 
+    # Get an item from the dataset
     def __getitem__(self, idx):
         video_path = self.samples[idx]['video_path']
         label = self.samples[idx]['label']
@@ -51,6 +60,7 @@ class CustomDataset(Dataset):
         inputs = inputs.view(3, 16, *INPUT_SIZE)  # Reshape the input tensor to (3, 16, height, width)
         return inputs, label
 
+    # Load frames from video
     def load_frames(self, video_path):
         cap = cv2.VideoCapture(video_path)
         frames = []
@@ -68,6 +78,7 @@ class CustomDataset(Dataset):
         return frames
 
 
+# Remove 'module.' prefix from state_dict keys
 def remove_module_from_keys(state_dict):
     new_state_dict = {}
     for key, value in state_dict.items():
@@ -76,7 +87,7 @@ def remove_module_from_keys(state_dict):
     return new_state_dict
 
 
-# Train function
+# Training function
 def train(model, dataloader, criterion, optimizer, device):
     model.train()
     running_loss = 0.0
@@ -138,11 +149,12 @@ def evaluate(model, dataloader, criterion, device):
     return epoch_loss, epoch_acc
 
 
-
+# Define data roots for train, validation, and test datasets
 train_data_root = "dataset/train"
 val_data_root = "dataset/val"
 test_data_root = "dataset/test"
 
+# Define data transforms for train and validation/test datasets
 train_transforms = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(10),
@@ -159,27 +171,33 @@ val_test_transforms = transforms.Compose([
                          std=[0.229, 0.224, 0.225])
 ])
 
+# Create train, validation, and test datasets using the defined data roots and transforms
 train_dataset = CustomDataset(train_data_root, transform=train_transforms)
 val_dataset = CustomDataset(val_data_root, transform=val_test_transforms)
 test_dataset = CustomDataset(test_data_root, transform=val_test_transforms)
 
+# Create DataLoaders for train, validation, and test datasets
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2, prefetch_factor=2)
 val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=2, prefetch_factor=2)
 test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=2, prefetch_factor=2)
 
+# Load the pretrained InceptionI3D model
 pretrained_model = InceptionI3d(1064, in_channels=3)
 
+# Load the state_dict and remove 'module.' prefix from keys
 state_dict = torch.load("/content/i3d.pth.tar")
 state_dict = remove_module_from_keys(state_dict)
 pretrained_model.load_state_dict(state_dict)
 
+# Create a new model with desired number of output classes and frames
 model = InceptionI3d(20, in_channels=3, num_in_frames=16)
 
+# Copy pretrained model parameters to the new model
 for new_param, pretrained_param in zip(model.parameters(), pretrained_model.parameters()):
     if new_param.shape == pretrained_param.shape:
         new_param.data.copy_(pretrained_param.data)
 
-# Set up the loss function and optimizer
+# Set up the loss function, optimizer, and learning rate scheduler
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
 scheduler = StepLR(optimizer, step_size=10, gamma=0.1)
@@ -199,6 +217,7 @@ for epoch in range(num_epochs):
 
     scheduler.step()
 
+# Save the trained model
 model_save_path = "13d_trained.pth"
 torch.save(model.state_dict(), model_save_path)
 print(f"Model saved to {model_save_path}")

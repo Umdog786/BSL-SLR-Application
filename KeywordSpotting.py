@@ -12,6 +12,7 @@ import webvtt
 from moviepy.editor import VideoFileClip
 from sklearn.metrics import pairwise_distances
 
+# utils can be found at https://github.com/gulvarol/bsldict
 from utils import (
     load_model,
     load_rgb_video,
@@ -19,7 +20,7 @@ from utils import (
     sliding_windows,
 )
 
-
+#
 def get_keyword_time_windows(subtitle_file, keyword, window_size=2):
     subs = webvtt.read(Path(subtitle_file))
     time_windows = []
@@ -27,8 +28,11 @@ def get_keyword_time_windows(subtitle_file, keyword, window_size=2):
     # Prepare the keyword for regex search
     keyword_pattern = re.compile(r'\b' + re.escape(keyword.lower()) + r'\b')
 
+    # Iterate through subtitle lines
     for sub in subs:
+        # Search for the keyword in the subtitle text
         if keyword_pattern.search(sub.text.lower()):
+            # Define the time window for the keyword
             start_time = max(0, sub.start_in_seconds - window_size)
             end_time = sub.end_in_seconds + window_size
             time_windows.append((start_time, end_time))
@@ -40,10 +44,12 @@ def count_word_frequency(subtitle_dir):
     word_count = defaultdict(int)
     subtitle_files = os.listdir(subtitle_dir)
 
+    # Iterate through subtitle files
     for file in subtitle_files:
         with open(os.path.join(subtitle_dir, file), 'r') as f:
             content = f.read().lower()
             words = re.findall(r'\b\w+\b', content)
+            # Count the frequency of each word
             for word in words:
                 word_count[word] += 1
 
@@ -53,20 +59,27 @@ def count_word_frequency(subtitle_dir):
 def process_filtered_words(filtered_words_file, bsldict_metadata, subtitle_dir, output_file, top_n=100):
     word_frequency = count_word_frequency(subtitle_dir)
 
+    # Read the list of filtered words
     with open(filtered_words_file, 'r') as f:
         filtered_words = [word.strip() for word in f.readlines()]
 
     valid_words = []
+
+    # Iterate through the filtered words
     for i, word in enumerate(filtered_words):
         print(f"Processing word {i + 1}/{len(filtered_words)}: {word}")
+        # Check if the word is in the BSL metadata
         if word in bsldict_metadata["words"]:
             dict_ix = np.where(np.array(bsldict_metadata["videos"]["word"]) == word)[0]
             num_dict_videos = len(dict_ix)
+            # Check if there are enough videos and the word is in the frequency dictionary
             if num_dict_videos >= 3 and word in word_frequency:
                 valid_words.append((word, word_frequency[word], num_dict_videos))
 
+    # Sort valid words by frequency
     valid_words.sort(key=lambda x: x[1], reverse=True)
 
+    # Write the top N valid words to the output file
     with open(output_file, 'w') as f:
         for word, freq, num_dict_videos in valid_words[:top_n]:
             f.write(f"{word},{freq},{num_dict_videos}\n")
@@ -79,6 +92,7 @@ def process_all_videos_in_directory(video_directory: str, subtitles_directory: s
     # Load the pretrained model
     model, device = load_spotting_model(args["checkpoint_path"])
 
+    # List of keywords to search for
     keywords = ["baby", "nature", "body", "father", "animal", "money", "family", "garden", "mother",
                 "morning", "fantastic", "happy", "hello", "number", "story", "remember", "please", "idea", "sorry",
                 "stop"]
@@ -349,8 +363,8 @@ if __name__ == "__main__":
         "occurance_count": 1,
     }
 
-    video_directory = "X:/BOBSL/bobsl/face-dataset/train"  # Update this with your video directory
-    subtitles_directory = "X:/BOBSL/bobsl/subtitles/audio-aligned-heuristic-correction"  # Update this with your subtitles directory
+    video_directory = "X:/BOBSL/bobsl/face-dataset/train"
+    subtitles_directory = "X:/BOBSL/bobsl/subtitles/audio-aligned-heuristic-correction"
 
     process_all_videos_in_directory(
         video_directory, subtitles_directory, args
